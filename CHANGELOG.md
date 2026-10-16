@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Status: add `status seen --id ID [--id ID ...] [--dry-run]` with privacy-aware poster-batched receipts and sync delegation.
+- Sync: unarchive chats on eligible incoming messages when Keep chats archived is off, recover missing preferences on upgrade, and preserve newer unarchives across stale archive replays. Thanks @Luizssauro (#466).
 
 ## 0.22.0 - 2026-10-16
 
