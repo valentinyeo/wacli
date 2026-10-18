@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Status: add `status seen --id ID [--id ID ...] [--dry-run]` with privacy-aware poster-batched receipts and sync delegation.
+
 ## 0.22.0 - 2026-10-16
 
 **Highlights:** bounded message search context and cursor reads, a content-free incremental journal, safer sends and chat recovery, and five networking security fixes.

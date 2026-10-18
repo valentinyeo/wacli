@@ -85,6 +85,7 @@ func execute(args []string) error {
 	rootCmd.AddCommand(newMessagesCmd(&flags))
 	rootCmd.AddCommand(newCallsCmd(&flags))
 	rootCmd.AddCommand(newSendCmd(&flags))
+	rootCmd.AddCommand(newStatusCmd(&flags))
 	rootCmd.AddCommand(newPollCmd(&flags))
 	rootCmd.AddCommand(newPollsCmd(&flags))
 	rootCmd.AddCommand(newMediaCmd(&flags))
