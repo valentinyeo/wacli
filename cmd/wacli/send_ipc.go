@@ -52,6 +52,8 @@ type sendDelegateRequest struct {
 	As                   string   `json:"as,omitempty"`
 	PTT                  bool     `json:"ptt,omitempty"`
 	ID                   string   `json:"id,omitempty"`
+	IDs                  []string `json:"ids,omitempty"`
+	DryRun               bool     `json:"dry_run,omitempty"`
 	Reaction             string   `json:"reaction,omitempty"`
 	Sender               string   `json:"sender,omitempty"`
 	Label                string   `json:"label,omitempty"`
@@ -80,26 +82,27 @@ type sendDelegateRequest struct {
 }
 
 type sendDelegateResponse struct {
-	OK             bool                 `json:"ok"`
-	Error          string               `json:"error,omitempty"`
-	Sent           bool                 `json:"sent,omitempty"`
-	To             string               `json:"to,omitempty"`
-	ID             string               `json:"id,omitempty"`
-	Target         string               `json:"target,omitempty"`
-	Reaction       string               `json:"reaction,omitempty"`
-	Question       string               `json:"question,omitempty"`
-	Options        []string             `json:"options,omitempty"`
-	Selected       []string             `json:"selected,omitempty"`
-	SelectedOption *selectOption        `json:"selected_option,omitempty"`
-	File           map[string]string    `json:"file,omitempty"`
-	StoreWarning   string               `json:"store_warning,omitempty"`
-	Chat           string               `json:"chat,omitempty"`
-	Action         string               `json:"action,omitempty"`
-	Receipts       *int                 `json:"receipts,omitempty"`
-	ReceiptType    string               `json:"receipt_type,omitempty"`
-	Contacts       []contactCheckResult `json:"contacts,omitempty"`
-	Presence       *app.PresenceState   `json:"presence,omitempty"`
-	Media          *mediaDownloadResult `json:"media,omitempty"`
+	OK             bool                  `json:"ok"`
+	Error          string                `json:"error,omitempty"`
+	Sent           bool                  `json:"sent,omitempty"`
+	To             string                `json:"to,omitempty"`
+	ID             string                `json:"id,omitempty"`
+	Target         string                `json:"target,omitempty"`
+	Reaction       string                `json:"reaction,omitempty"`
+	Question       string                `json:"question,omitempty"`
+	Options        []string              `json:"options,omitempty"`
+	Selected       []string              `json:"selected,omitempty"`
+	SelectedOption *selectOption         `json:"selected_option,omitempty"`
+	File           map[string]string     `json:"file,omitempty"`
+	StoreWarning   string                `json:"store_warning,omitempty"`
+	Chat           string                `json:"chat,omitempty"`
+	Action         string                `json:"action,omitempty"`
+	Receipts       *int                  `json:"receipts,omitempty"`
+	ReceiptType    string                `json:"receipt_type,omitempty"`
+	Contacts       []contactCheckResult  `json:"contacts,omitempty"`
+	Presence       *app.PresenceState    `json:"presence,omitempty"`
+	Media          *mediaDownloadResult  `json:"media,omitempty"`
+	StatusSeen     *app.StatusSeenResult `json:"status_seen,omitempty"`
 }
 
 type sendDelegateExecutor func(context.Context, sendDelegateRequest) (sendDelegateResponse, error)
@@ -403,6 +406,9 @@ func executeDelegatedSend(parent context.Context, a *app.App, req sendDelegateRe
 	defer cancel()
 
 	switch req.Kind {
+	case statusSeenKind:
+		result, err := a.StatusSeen(ctx, req.IDs, req.DryRun)
+		return sendDelegateResponse{OK: err == nil, StatusSeen: result}, err
 	case mediaDownloadKind:
 		if req.To == "" || req.ID == "" {
 			return sendDelegateResponse{}, fmt.Errorf("exact media chat and message ID are required")

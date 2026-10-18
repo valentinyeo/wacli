@@ -95,3 +95,17 @@ func TestReceiptPrivacyLookupFailureDoesNotDispatch(t *testing.T) {
 		t.Fatal("receipt sent despite failed privacy lookup")
 	}
 }
+
+func TestStatusReceiptUsesPrivacyAwareDispatch(t *testing.T) {
+	for _, privacy := range []types.PrivacySetting{types.PrivacySettingAll, types.PrivacySettingNone} {
+		f := &receiptTransportFake{privacy: privacy}
+		got, err := dispatchReadReceipt(t.Context(), f, []types.MessageID{"status-id"}, time.Now(), types.StatusBroadcastJID, types.NewJID("123", types.DefaultUserServer))
+		want, requested := ReadReceiptUnknown, types.ReceiptTypeRead
+		if privacy == types.PrivacySettingNone {
+			want, requested = types.ReceiptTypeReadSelf, types.ReceiptTypeReadSelf
+		}
+		if err != nil || got != want || len(f.requests) != 1 || f.requests[0] != requested {
+			t.Fatalf("privacy=%s result=%s requests=%v err=%v", privacy, got, f.requests, err)
+		}
+	}
+}

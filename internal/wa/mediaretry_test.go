@@ -72,3 +72,27 @@ func TestDecryptMediaRetryPreservesUnknownError(t *testing.T) {
 		t.Fatalf("code = %d, want general error", code)
 	}
 }
+
+func TestStatusReceiptLIDRewriteKeepsBroadcastChatAndPoster(t *testing.T) {
+	poster := types.NewJID("15557654321", types.DefaultUserServer)
+	lid := types.NewJID("987654321", types.HiddenUserServer)
+	for _, migrated := range []int64{0, 1} {
+		cli := &whatsmeow.Client{Store: &waStore.Device{LIDMigrationTimestamp: migrated}}
+		info := types.MessageInfo{MessageSource: types.MessageSource{
+			Chat: types.StatusBroadcastJID, Sender: poster, AddressingMode: types.AddressingModeLID,
+		}}
+		got := rewriteMediaRetryInfoForLID(t.Context(), cli, info, func(_ context.Context, _ *whatsmeow.Client, jid types.JID) types.JID {
+			if jid != poster {
+				t.Fatalf("resolving non-poster %s", jid)
+			}
+			return lid
+		})
+		want := poster
+		if migrated > 0 {
+			want = lid
+		}
+		if got.Chat != types.StatusBroadcastJID || got.Sender != want || got.IsGroup {
+			t.Fatalf("migration=%d source=%+v", migrated, got.MessageSource)
+		}
+	}
+}
