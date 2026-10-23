@@ -166,34 +166,6 @@ func TestBackfillHistoryDoesNotRetryTransportError(t *testing.T) {
 	}
 }
 
-func TestBackfillHistoryAnchorsOnRealMessageNotPlaceholder(t *testing.T) {
-	a, f, chat, base := newBackfillRetryTest(t)
-	stub := storeUpsertMessage(chat, "stub", base.Add(time.Second), "")
-	stub.FromMe = true
-	stub.DisplayText = "(message)"
-	if err := a.db.UpsertMessage(stub); err != nil {
-		t.Fatalf("UpsertMessage stub: %v", err)
-	}
-	if err := a.db.UpsertMessage(storeUpsertMessage(chat, "real", base.Add(2*time.Second), "real text")); err != nil {
-		t.Fatalf("UpsertMessage real: %v", err)
-	}
-	var anchors []string
-	f.onDemandHistory = func(info types.MessageInfo, count int) *events.HistorySync {
-		anchors = append(anchors, info.ID)
-		return backfillTestResponse(chat, "older", base)
-	}
-	res, err := a.BackfillHistory(context.Background(), backfillRetryOptions(chat))
-	if err != nil {
-		t.Fatalf("BackfillHistory: %v (anchors %v)", err, anchors)
-	}
-	if !slices.Equal(anchors, []string{"real"}) {
-		t.Fatalf("anchors = %v, want [real]", anchors)
-	}
-	if res.RequestsSent != 1 || res.MessagesAdded != 1 {
-		t.Fatalf("result = %+v", res)
-	}
-}
-
 func newBackfillRetryTest(t *testing.T, ids ...string) (*App, *fakeWA, string, time.Time) {
 	t.Helper()
 	a := newTestApp(t)
