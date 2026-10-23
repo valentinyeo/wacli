@@ -53,7 +53,10 @@ func (d *DB) ListChatsFiltered(f ChatListFilter) ([]Chat, error) {
 	if f.Limit <= 0 {
 		f.Limit = 50
 	}
-	q := `SELECT jid, kind, COALESCE(name,''), COALESCE(last_message_ts,0), COALESCE(archived,0), COALESCE(pinned,0), COALESCE(muted_until,0), COALESCE(unread,0), COALESCE(unread_count,0) FROM chats WHERE 1=1`
+	q := `SELECT jid, kind, COALESCE(name,''), COALESCE(last_message_ts,0), COALESCE(archived,0), COALESCE(pinned,0), COALESCE(muted_until,0), COALESCE(unread,0), COALESCE(unread_count,0) FROM chats WHERE jid != 'status@broadcast'
+		AND (kind != 'group'
+			OR EXISTS (SELECT 1 FROM groups g WHERE g.jid = chats.jid)
+			OR EXISTS (SELECT 1 FROM messages m WHERE m.chat_jid = chats.jid AND COALESCE(m.revoked,0) = 0 AND COALESCE(m.deleted_for_me,0) = 0))`
 	var args []any
 	if strings.TrimSpace(f.Query) != "" {
 		q += ` AND (LOWER(name) LIKE LOWER(?) ESCAPE '\' OR LOWER(jid) LIKE LOWER(?) ESCAPE '\')`
