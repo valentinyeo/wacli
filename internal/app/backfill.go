@@ -227,7 +227,7 @@ func (a *App) BackfillHistory(ctx context.Context, opts BackfillOptions) (Backfi
 			// Resolve the local identity only after that migration has completed.
 			chatStr := a.canonicalStoreJID(ctx, chat).String()
 			for i := 0; i < opts.Requests; i++ {
-				oldest, err := a.db.GetOldestBackfillAnchor(chatStr)
+				oldest, err := a.db.GetOldestMessageInfo(chatStr)
 				if err != nil {
 					if err == sql.ErrNoRows {
 						return fmt.Errorf("no messages for %s in local DB; run `wacli sync` first", chatStr)
@@ -259,7 +259,7 @@ func (a *App) BackfillHistory(ctx context.Context, opts BackfillOptions) (Backfi
 					"responses_seen": responsesSeen,
 				}, "On-demand history sync: %d conversations, %d messages.\n", resp.conversations, resp.messages)
 
-				newOldest, err := a.db.GetOldestBackfillAnchor(chatStr)
+				newOldest, err := a.db.GetOldestMessageInfo(chatStr)
 				// A retry's newer anchor is not progress past the original oldest row.
 				if err == nil && newOldest.MsgID == oldest.MsgID {
 					a.emitOrPrint("backfill_stopped", map[string]any{
