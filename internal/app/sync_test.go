@@ -294,7 +294,7 @@ func TestHistorySyncStoresDeviceSentMessagesInDestinationChat(t *testing.T) {
 	msg := &waWeb.WebMessageInfo{
 		Key: &waCommon.MessageKey{
 			RemoteJID: proto.String(self.String()),
-			FromMe:    proto.Bool(false),
+			FromMe:    proto.Bool(true),
 			ID:        proto.String("device-sent-1"),
 		},
 		MessageTimestamp: proto.Uint64(uint64(base.Unix())),
@@ -2812,6 +2812,7 @@ func TestSyncDownloadsHistoryNotificationBeforeProcessing(t *testing.T) {
 	syncType := waE2E.HistorySyncType_INITIAL_BOOTSTRAP
 	notif := &waE2E.HistorySyncNotification{SyncType: &syncType}
 	f.connectEvents = []any{&events.Message{
+		Info: types.MessageInfo{MessageSource: types.MessageSource{IsFromMe: true}},
 		Message: &waProto.Message{
 			ProtocolMessage: &waProto.ProtocolMessage{
 				HistorySyncNotification: notif,
