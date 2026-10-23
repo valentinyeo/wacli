@@ -37,7 +37,7 @@ func TestParseHistoryMessageDeviceSentUsesDestinationChat(t *testing.T) {
 	h := &waProto.WebMessageInfo{
 		Key: &waProto.MessageKey{
 			ID:        proto.String("sent-from-phone"),
-			FromMe:    proto.Bool(false),
+			FromMe:    proto.Bool(true),
 			RemoteJID: proto.String("me@s.whatsapp.net"),
 		},
 		MessageTimestamp: proto.Uint64(uint64(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).Unix())),
@@ -67,7 +67,7 @@ func TestParseLiveMessageDeviceSentMetaUsesDestinationChat(t *testing.T) {
 			MessageSource: types.MessageSource{
 				Chat:     types.NewJID("me", types.DefaultUserServer),
 				Sender:   types.NewJID("me", types.DefaultUserServer),
-				IsFromMe: false,
+				IsFromMe: true,
 			},
 			DeviceSentMeta: &types.DeviceSentMeta{
 				DestinationJID: "15551234567@s.whatsapp.net",
