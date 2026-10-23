@@ -205,6 +205,112 @@ func backfillTestResponse(chat, id string, timestamp time.Time) *events.HistoryS
 	}}
 }
 
+func TestBackfillHistoryEventsIncludeEndType(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		endType     waHistorySync.Conversation_EndOfHistoryTransferType
+		older       bool
+		wantEndType string
+		wantReason  string
+	}{
+		{
+			name:        "no messages and no more history",
+			endType:     waHistorySync.Conversation_COMPLETE_AND_NO_MORE_MESSAGE_REMAIN_ON_PRIMARY,
+			wantEndType: "COMPLETE_AND_NO_MORE_MESSAGE_REMAIN_ON_PRIMARY",
+			wantReason:  "no_older_messages_added",
+		},
+		{
+			name:        "no messages but more history remains",
+			endType:     waHistorySync.Conversation_COMPLETE_BUT_MORE_MESSAGES_REMAIN_ON_PRIMARY,
+			wantEndType: "COMPLETE_BUT_MORE_MESSAGES_REMAIN_ON_PRIMARY",
+			wantReason:  "no_older_messages_added",
+		},
+		{
+			name:        "older message reaches start of history",
+			endType:     waHistorySync.Conversation_COMPLETE_AND_NO_MORE_MESSAGE_REMAIN_ON_PRIMARY,
+			older:       true,
+			wantEndType: "COMPLETE_AND_NO_MORE_MESSAGE_REMAIN_ON_PRIMARY",
+			wantReason:  "start_of_history_reached",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newTestApp(t)
+			f := newFakeWA()
+			a.wa = f
+			var buf bytes.Buffer
+			a.opts.Events = out.NewEventWriter(&buf, true)
+			chat := "123@s.whatsapp.net"
+			base := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+			if err := a.db.UpsertChat(chat, "dm", "Test contact", base); err != nil {
+				t.Fatalf("UpsertChat: %v", err)
+			}
+			if err := a.db.UpsertMessage(storeUpsertMessage(chat, "m2", base, "test message")); err != nil {
+				t.Fatalf("UpsertMessage: %v", err)
+			}
+			f.onDemandHistory = func(lastKnown types.MessageInfo, count int) *events.HistorySync {
+				hs := backfillTestResponse(chat, "m1", base.Add(-time.Second))
+				conv := hs.Data.Conversations[0]
+				conv.EndOfHistoryTransfer = proto.Bool(true)
+				conv.EndOfHistoryTransferType = tc.endType.Enum()
+				if !tc.older {
+					conv.Messages = nil
+				}
+				return hs
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			res, err := a.BackfillHistory(ctx, BackfillOptions{
+				ChatJID:        chat,
+				Count:          50,
+				Requests:       1,
+				WaitPerRequest: time.Second,
+				IdleExit:       time.Millisecond,
+			})
+			if err != nil {
+				t.Fatalf("BackfillHistory: %v", err)
+			}
+			if res.RequestsSent != 1 || res.ResponsesSeen != 1 {
+				t.Fatalf("result = %+v, want one request and response", res)
+			}
+			wantOldest := "m2"
+			if tc.older {
+				wantOldest = "m1"
+			}
+			oldest, err := a.db.GetOldestMessageInfo(chat)
+			if err != nil || oldest.MsgID != wantOldest {
+				t.Fatalf("oldest = %+v, err = %v, want %s", oldest, err, wantOldest)
+			}
+
+			responses, stopped := 0, 0
+			for line := range bytes.SplitSeq(bytes.TrimSpace(buf.Bytes()), []byte("\n")) {
+				var event struct {
+					Event string         `json:"event"`
+					Data  map[string]any `json:"data"`
+				}
+				if err := json.Unmarshal(line, &event); err != nil {
+					t.Fatalf("invalid lifecycle JSON: %s: %v", line, err)
+				}
+				switch event.Event {
+				case "backfill_response":
+					responses++
+					if event.Data["end_type"] != tc.wantEndType {
+						t.Fatalf("backfill_response end_type = %v, want %s", event.Data["end_type"], tc.wantEndType)
+					}
+				case "backfill_stopped":
+					stopped++
+					if event.Data["end_type"] != tc.wantEndType || event.Data["reason"] != tc.wantReason {
+						t.Fatalf("backfill_stopped data = %v, want end_type %s and reason %s", event.Data, tc.wantEndType, tc.wantReason)
+					}
+				}
+			}
+			if responses != 1 || stopped != 1 {
+				t.Fatalf("response events = %d, stopped events = %d, want one each; events: %s", responses, stopped, &buf)
+			}
+		})
+	}
+}
+
 func TestBackfillHistoryAddsOlderMessages(t *testing.T) {
 	a := newTestApp(t)
 	f := newFakeWA()
