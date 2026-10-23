@@ -515,6 +515,10 @@ func (d *DB) GetOldestMessageInfo(chatJID string) (MessageInfo, error) {
 	return messageInfoFromOldestRow(row), nil
 }
 
+func (d *DB) GetOldestBackfillAnchor(chatJID string) (MessageInfo, error) {
+	return d.GetOldestMessageInfo(chatJID)
+}
+
 func (d *DB) GetLatestMessageInfo(chatJID string) (MessageInfo, error) {
 	chatJID = strings.TrimSpace(chatJID)
 	if chatJID == "" {
