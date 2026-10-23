@@ -143,17 +143,16 @@ func (c *Client) ResolveChatName(ctx context.Context, chat types.JID, pushName s
 				return name
 			}
 		}
-	} else {
+	} else if chat.Server == types.DefaultUserServer || chat.Server == types.HiddenUserServer {
 		info, err := c.GetContact(ctx, chat.ToNonAD())
 		if err == nil {
 			if name := BestContactName(info); name != "" {
 				return name
 			}
 		}
-	}
-
-	if name := strings.TrimSpace(pushName); name != "" && name != "-" {
-		return name
+		if name := strings.TrimSpace(pushName); name != "" && name != "-" {
+			return name
+		}
 	}
 	return fallback
 }
