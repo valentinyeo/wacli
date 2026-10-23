@@ -386,3 +386,29 @@ func TestSetHistorySyncLimits(t *testing.T) {
 		t.Fatalf("size = %d MB, days = %d, want 2048, 7300", cfg.GetFullSyncSizeMbLimit(), cfg.GetFullSyncDaysLimit())
 	}
 }
+
+func TestIGSH695ResolveChatNameFallback(t *testing.T) {
+	c := &Client{}
+	cases := []struct {
+		name     string
+		chat     types.JID
+		pushName string
+		want     string
+	}{
+		{"group lookup fails", types.NewJID("120363000000000001", types.GroupServer), "Alice Sender", "120363000000000001@g.us"},
+		{"broadcast", types.NewJID("120363000000000002", types.BroadcastServer), "Alice Sender", "120363000000000002@broadcast"},
+		{"status", types.StatusBroadcastJID, "Alice Sender", "status@broadcast"},
+		{"newsletter", types.NewJID("120363000000000003", types.NewsletterServer), "Alice Sender", "120363000000000003@newsletter"},
+		{"dm without contact", types.NewJID("alice", types.DefaultUserServer), " Alice Sender ", "Alice Sender"},
+		{"lid without contact", types.NewJID("alice", types.HiddenUserServer), "Alice Sender", "Alice Sender"},
+		{"dm empty push name", types.NewJID("alice", types.DefaultUserServer), " ", "alice@s.whatsapp.net"},
+		{"dm placeholder push name", types.NewJID("alice", types.DefaultUserServer), " - ", "alice@s.whatsapp.net"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := c.ResolveChatName(context.Background(), tc.chat, tc.pushName); got != tc.want {
+				t.Fatalf("ResolveChatName = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

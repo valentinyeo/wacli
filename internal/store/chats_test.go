@@ -241,3 +241,69 @@ func TestChatStateSettersCreateMissingChat(t *testing.T) {
 		t.Fatalf("created chat = %+v", c)
 	}
 }
+
+func TestIGSH695ChatsListHidesGroupWithoutMetadataOrLiveMessage(t *testing.T) {
+	db := openTestDB(t)
+	now := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name     string
+		jid      string
+		kind     string
+		metadata bool
+		messages []UpsertMessageParams
+		want     bool
+	}{
+		{name: "group without messages", jid: "120363000000000001@g.us", kind: "group"},
+		{name: "group with only revoked message", jid: "120363000000000002@g.us", kind: "group", messages: []UpsertMessageParams{
+			{MsgID: "revoked", Revoked: true, Text: "This message was deleted"},
+		}},
+		{name: "group with only deleted for me message", jid: "120363000000000003@g.us", kind: "group", messages: []UpsertMessageParams{
+			{MsgID: "deleted", DeletedForMe: true},
+		}},
+		{name: "group with metadata and no messages", jid: "120363000000000004@g.us", kind: "group", metadata: true, want: true},
+		{name: "group with live message", jid: "120363000000000005@g.us", kind: "group", messages: []UpsertMessageParams{
+			{MsgID: "live", Text: "Hello"},
+		}, want: true},
+		{name: "group with revoked and live messages", jid: "120363000000000006@g.us", kind: "group", messages: []UpsertMessageParams{
+			{MsgID: "revoked", Revoked: true},
+			{MsgID: "live", Text: "Hello"},
+		}, want: true},
+		{name: "status with live message", jid: "status@broadcast", kind: "broadcast", messages: []UpsertMessageParams{
+			{MsgID: "status", Text: "Hello"},
+		}},
+		{name: "existing dm without messages", jid: "alice@s.whatsapp.net", kind: "dm", want: true},
+	}
+	for _, tc := range cases {
+		if err := db.UpsertChat(tc.jid, tc.kind, "Alice Sender", now); err != nil {
+			t.Fatalf("UpsertChat %s: %v", tc.jid, err)
+		}
+		if tc.metadata {
+			if err := db.UpsertGroup(tc.jid, "Example Group", "", now); err != nil {
+				t.Fatalf("UpsertGroup %s: %v", tc.jid, err)
+			}
+		}
+		for _, message := range tc.messages {
+			message.ChatJID = tc.jid
+			message.Timestamp = now
+			if err := db.UpsertMessage(message); err != nil {
+				t.Fatalf("UpsertMessage %s: %v", tc.jid, err)
+			}
+		}
+	}
+
+	chats, err := db.ListChatsFiltered(ChatListFilter{Limit: 50})
+	if err != nil {
+		t.Fatalf("ListChatsFiltered: %v", err)
+	}
+	listed := map[string]bool{}
+	for _, chat := range chats {
+		listed[chat.JID] = true
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := listed[tc.jid]; got != tc.want {
+				t.Fatalf("chat %s listed = %v, want %v", tc.jid, got, tc.want)
+			}
+		})
+	}
+}
