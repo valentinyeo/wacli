@@ -637,6 +637,38 @@ func (q *Queries) GetNextMessageInfo(ctx context.Context, arg GetNextMessageInfo
 	return i, err
 }
 
+const getOldestBackfillAnchor = `-- name: GetOldestBackfillAnchor :one
+SELECT m.chat_jid, m.msg_id, m.ts, m.from_me, COALESCE(m.sender_jid,''), COALESCE(m.sender_name,'')
+FROM messages m
+WHERE m.chat_jid = ?
+  AND NOT (COALESCE(m.display_text,'') = '(message)' AND TRIM(COALESCE(m.text,'')) = '' AND COALESCE(m.media_type,'') = '' AND COALESCE(m.reaction_to_id,'') = '')
+ORDER BY m.ts ASC, m.rowid ASC
+LIMIT 1
+`
+
+type GetOldestBackfillAnchorRow struct {
+	ChatJid    string
+	MsgID      string
+	Ts         int64
+	FromMe     int64
+	SenderJid  string
+	SenderName string
+}
+
+func (q *Queries) GetOldestBackfillAnchor(ctx context.Context, chatJid string) (GetOldestBackfillAnchorRow, error) {
+	row := q.db.QueryRowContext(ctx, getOldestBackfillAnchor, chatJid)
+	var i GetOldestBackfillAnchorRow
+	err := row.Scan(
+		&i.ChatJid,
+		&i.MsgID,
+		&i.Ts,
+		&i.FromMe,
+		&i.SenderJid,
+		&i.SenderName,
+	)
+	return i, err
+}
+
 const getOldestMessageInfo = `-- name: GetOldestMessageInfo :one
 SELECT m.chat_jid, m.msg_id, m.ts, m.from_me, COALESCE(m.sender_jid,''), COALESCE(m.sender_name,'')
 FROM messages m

@@ -301,6 +301,14 @@ WHERE m.chat_jid = ?
 ORDER BY m.ts ASC, m.rowid ASC
 LIMIT 1;
 
+-- name: GetOldestBackfillAnchor :one
+SELECT m.chat_jid, m.msg_id, m.ts, m.from_me, COALESCE(m.sender_jid,''), COALESCE(m.sender_name,'')
+FROM messages m
+WHERE m.chat_jid = ?
+  AND NOT (COALESCE(m.display_text,'') = '(message)' AND TRIM(COALESCE(m.text,'')) = '' AND COALESCE(m.media_type,'') = '' AND COALESCE(m.reaction_to_id,'') = '')
+ORDER BY m.ts ASC, m.rowid ASC
+LIMIT 1;
+
 -- name: GetLatestMessageInfo :one
 SELECT m.chat_jid, m.msg_id, m.ts, m.from_me, COALESCE(m.sender_jid,''), COALESCE(m.sender_name,'')
 FROM messages m
