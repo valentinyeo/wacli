@@ -689,7 +689,7 @@ func (a *App) downloadAndHandleHistorySync(ctx context.Context, opts SyncOptions
 }
 
 func historySyncNotificationFromMessage(v *events.Message) *waE2E.HistorySyncNotification {
-	if v == nil || v.Message == nil {
+	if v == nil || v.Message == nil || !v.Info.IsFromMe {
 		return nil
 	}
 	return v.Message.GetProtocolMessage().GetHistorySyncNotification()

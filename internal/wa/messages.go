@@ -272,10 +272,9 @@ func extractWAProto(m *waProto.Message, pm *ParsedMessage) *waProto.Message {
 }
 
 func applyDeviceSentDestination(destination string, pm *ParsedMessage) {
-	if pm == nil {
+	if pm == nil || !pm.FromMe {
 		return
 	}
-	pm.FromMe = true
 	if chat, err := types.ParseJID(strings.TrimSpace(destination)); err == nil && !chat.IsEmpty() {
 		pm.Chat = chat
 	}
@@ -312,6 +311,9 @@ func applyProtocolKey(key *waProto.MessageKey, pm *ParsedMessage) {
 	}
 	if id := strings.TrimSpace(key.GetID()); id != "" {
 		pm.ID = id
+	}
+	if !pm.FromMe {
+		return
 	}
 	if remote := strings.TrimSpace(key.GetRemoteJID()); remote != "" {
 		if chat, err := types.ParseJID(remote); err == nil {
