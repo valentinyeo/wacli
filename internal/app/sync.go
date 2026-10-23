@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -412,6 +413,17 @@ type messageStoreOptions struct {
 func (a *App) storeParsedMessage(ctx context.Context, pm wa.ParsedMessage, options messageStoreOptions) error {
 	pm.Chat = a.canonicalStoreJID(ctx, pm.Chat)
 	chatJID := canonicalJIDString(pm.Chat)
+	if pm.Chat != types.StatusBroadcastJID {
+		existing, err := a.db.GetMessage(chatJID, pm.ID)
+		if err == nil {
+			if existing.FromMe != pm.FromMe || (!pm.FromMe && existing.SenderJID != "" &&
+				a.canonicalStoreJIDString(ctx, existing.SenderJID) != a.canonicalStoreJIDString(ctx, pm.SenderJID)) {
+				return fmt.Errorf("message identity does not match stored sender")
+			}
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+	}
 	var chatName string
 	if pm.Chat.Server == types.GroupServer {
 		var err error
