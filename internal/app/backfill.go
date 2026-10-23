@@ -257,6 +257,7 @@ func (a *App) BackfillHistory(ctx context.Context, opts BackfillOptions) (Backfi
 					"conversations":  resp.conversations,
 					"messages":       resp.messages,
 					"responses_seen": responsesSeen,
+					"end_type":       resp.endType.String(),
 				}, "On-demand history sync: %d conversations, %d messages.\n", resp.conversations, resp.messages)
 
 				newOldest, err := a.db.GetOldestMessageInfo(chatStr)
@@ -264,6 +265,7 @@ func (a *App) BackfillHistory(ctx context.Context, opts BackfillOptions) (Backfi
 				if err == nil && newOldest.MsgID == oldest.MsgID {
 					a.emitOrPrint("backfill_stopped", map[string]any{
 						"chat_jid": chatStr,
+						"end_type": resp.endType.String(),
 						"reason":   "no_older_messages_added",
 					}, "No older messages were added (stopping).\n")
 					return nil
@@ -271,6 +273,7 @@ func (a *App) BackfillHistory(ctx context.Context, opts BackfillOptions) (Backfi
 				if resp.messages <= 0 {
 					a.emitOrPrint("backfill_stopped", map[string]any{
 						"chat_jid": chatStr,
+						"end_type": resp.endType.String(),
 						"reason":   "no_messages_returned",
 					}, "No messages returned (stopping).\n")
 					return nil
@@ -278,6 +281,7 @@ func (a *App) BackfillHistory(ctx context.Context, opts BackfillOptions) (Backfi
 				if resp.endType == waHistorySync.Conversation_COMPLETE_AND_NO_MORE_MESSAGE_REMAIN_ON_PRIMARY {
 					a.emitOrPrint("backfill_stopped", map[string]any{
 						"chat_jid": chatStr,
+						"end_type": resp.endType.String(),
 						"reason":   "start_of_history_reached",
 					}, "Reached start of chat history (stopping).\n")
 					return nil
