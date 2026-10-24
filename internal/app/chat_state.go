@@ -12,6 +12,7 @@ import (
 
 	"github.com/openclaw/wacli/internal/store"
 	"github.com/openclaw/wacli/internal/wa"
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/proto/waCommon"
 	"go.mau.fi/whatsmeow/proto/waSyncAction"
@@ -238,6 +239,10 @@ func (a *App) syncChatStateBeforeWrite(ctx context.Context, collection appstate.
 			return a.clearCompletedAppStateRecovery(collection, markerGeneration)
 		}
 
+		if isRetryableAppStateFetchError(err) {
+			return errors.Join(fmt.Errorf("sync WhatsApp chat state before update: %w", err),
+				a.db.ClearAppStateRecoveryIntent(string(collection), markerGeneration))
+		}
 		if errors.Is(err, appstate.ErrMismatchingLTHash) || errors.Is(err, wa.ErrEmptyAppStateKeyShare) {
 			return a.replayRequiredAppState(ctx, collection, markerGeneration, tracker)
 		} else if errors.Is(err, appstate.ErrKeyNotFound) {
@@ -246,6 +251,19 @@ func (a *App) syncChatStateBeforeWrite(ctx context.Context, collection appstate.
 			return fmt.Errorf("sync WhatsApp chat state before update: %w", err)
 		}
 	}
+}
+
+func isRetryableAppStateFetchError(err error) bool {
+	var iqErr *whatsmeow.IQError
+	if errors.As(err, &iqErr) && (iqErr.Code == 429 || iqErr.Text == "rate-overlimit") {
+		return true
+	}
+	return errors.Is(err, whatsmeow.ErrIQResourceLimit) ||
+		errors.Is(err, whatsmeow.ErrIQInternalServerError) ||
+		errors.Is(err, whatsmeow.ErrIQServiceUnavailable) ||
+		errors.Is(err, whatsmeow.ErrIQPartialServerError) ||
+		errors.Is(err, whatsmeow.ErrIQTimedOut) ||
+		errors.Is(err, whatsmeow.ErrIQDisconnected)
 }
 
 func (a *App) replayRequiredAppState(ctx context.Context, collection appstate.WAPatchName, markerGeneration int64, tracker *appStatePersistenceTracker) error {
@@ -349,23 +367,6 @@ func (a *App) loadAppStateFullSyncResultsLocked() {
 	}
 }
 
-// degradedAppStateReplay handles pre-write replay debt on collections whose
-// full sync is known not to verify. Replaying there repeats the very full sync
-// that already failed — destroying the local collection version with stock
-// whatsmeow — and then waits up to appStateRecoveryMaxWait for the primary,
-// which is often asleep. Instead, with local state present, an incremental
-// fetch from the local version confirms the server accepted our patches and
-// the write proceeds. Only this attempt's own write-ahead marker is cleared:
-// older intents can stand for mutations whatsmeow's cursor already consumed
-// but wacli.db never persisted, and an empty incremental delta is not a
-// replay of those, so that debt stays durable until a verified full replay or
-// a primary recovery snapshot covers it (both clear through their own, newer
-// generation). One background recovery request per collection per 6h still
-// nudges the primary, since only it can repair the broken full sync.
-//
-// Returns handled=false (fall back to today's full replay + phone wait) when
-// the flag is not set, there is no local state, or the incremental fetch
-// fails.
 func (a *App) degradedAppStateReplay(ctx context.Context, collection appstate.WAPatchName, markerGeneration int64, tracker *appStatePersistenceTracker) (handled bool, err error) {
 	if !a.isAppStateFullSyncBroken(collection) {
 		return false, nil
@@ -383,15 +384,16 @@ func (a *App) degradedAppStateReplay(ctx context.Context, collection appstate.WA
 		return true, fmt.Errorf("persist degraded app state replay %s: %w", collection, persistenceErr)
 	}
 	if fetchErr != nil {
-		// LTHash mismatch (or any other failure): today's behavior.
+		if isRetryableAppStateFetchError(fetchErr) {
+			return true, errors.Join(fmt.Errorf("sync degraded WhatsApp app state %s: %w", collection, fetchErr),
+				a.db.ClearAppStateRecoveryIntent(string(collection), markerGeneration))
+		}
 		return false, nil
 	}
 	a.emitWarning("app_state_degraded_replay",
 		fmt.Sprintf("app state %s: full sync is known not to verify on this account; proceeding after an incremental sync and keeping the durable replay debt", collection),
 		map[string]any{"name": string(collection), "generation": markerGeneration})
 	a.requestBackgroundAppStateRecovery(ctx, collection, markerGeneration)
-	// Clear only this attempt's own write-ahead marker; see the function
-	// comment for why older intents must survive an empty incremental delta.
 	if err := a.db.ClearAppStateRecoveryIntent(string(collection), markerGeneration); err != nil {
 		return true, fmt.Errorf("clear degraded replay marker for %s: %w", collection, err)
 	}
