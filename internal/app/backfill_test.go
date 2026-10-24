@@ -293,6 +293,7 @@ func TestBackfillHistoryDownloadsManualOnDemandNotification(t *testing.T) {
 	notif := &waE2E.HistorySyncNotification{SyncType: &syncType}
 	f.onDemandEvent = func(lastKnown types.MessageInfo, count int) any {
 		return &events.Message{
+			Info: types.MessageInfo{MessageSource: types.MessageSource{IsFromMe: true}},
 			Message: &waProto.Message{
 				ProtocolMessage: &waProto.ProtocolMessage{
 					HistorySyncNotification: notif,

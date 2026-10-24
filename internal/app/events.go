@@ -3,6 +3,8 @@ package app
 import (
 	"fmt"
 	"os"
+
+	"github.com/openclaw/wacli/internal/out"
 )
 
 func (a *App) eventsEnabled() bool {
@@ -49,6 +51,7 @@ func (a *App) emitWarning(code, message string, data map[string]any) {
 		a.emitEvent("warning", data)
 		return
 	}
+	message = out.SanitizeHuman(message)
 	if st := a.currentSyncStatus(); st != nil {
 		st.WarnLine(message)
 		return

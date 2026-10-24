@@ -78,7 +78,10 @@ func TestBackfillHistoryResolvesChatIdentity(t *testing.T) {
 					if pending == nil {
 						return nil
 					}
-					return &events.Message{Message: &waE2E.Message{ProtocolMessage: &waE2E.ProtocolMessage{HistorySyncNotification: notif}}}
+					return &events.Message{
+						Info:    types.MessageInfo{MessageSource: types.MessageSource{IsFromMe: true}},
+						Message: &waE2E.Message{ProtocolMessage: &waE2E.ProtocolMessage{HistorySyncNotification: notif}},
+					}
 				}
 				f.downloadHistory = func(*waE2E.HistorySyncNotification) (*waHistorySync.HistorySync, error) {
 					return pending.Data, nil

@@ -199,6 +199,9 @@ func (a *App) handlePollAddOption(ctx context.Context, pm wa.ParsedMessage, evt 
 			return
 		}
 	}
+	if evt == nil || a.canonicalStoreJIDString(ctx, poll.ChatJID) != canonicalJIDString(a.canonicalStoreJID(ctx, evt.Info.Chat)) {
+		return
+	}
 	if slices.Contains(poll.Options, option) {
 		return
 	}
