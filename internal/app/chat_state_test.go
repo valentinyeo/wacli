@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openclaw/wacli/internal/wa"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/types"
@@ -105,5 +106,57 @@ func TestChatStateRateLimitedFetchRetriesIncrementally(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestRetryableAppStateFetchErrors(t *testing.T) {
+	for _, err := range []error{
+		whatsmeow.ErrIQRateOverLimit,
+		&whatsmeow.IQError{Code: 429, Text: "other"},
+		&whatsmeow.IQError{Text: "rate-overlimit"},
+		whatsmeow.ErrIQResourceLimit,
+		whatsmeow.ErrIQInternalServerError,
+		whatsmeow.ErrIQServiceUnavailable,
+		whatsmeow.ErrIQPartialServerError,
+		whatsmeow.ErrIQTimedOut,
+		whatsmeow.ErrIQDisconnected,
+	} {
+		if !isRetryableAppStateFetchError(fmt.Errorf("fetch: %w", err)) {
+			t.Errorf("retryable fetch error classified as replay debt: %v", err)
+		}
+	}
+	for _, err := range []error{
+		appstate.ErrMismatchingLTHash,
+		appstate.ErrKeyNotFound,
+		wa.ErrEmptyAppStateKeyShare,
+		appstate.ErrMismatchingPatchMAC,
+		whatsmeow.ErrIQNotAuthorized,
+		errors.New("database failure"),
+	} {
+		if isRetryableAppStateFetchError(fmt.Errorf("fetch: %w", err)) {
+			t.Errorf("non-transient fetch error classified as retryable: %v", err)
+		}
+	}
+}
+
+func TestChatStateRepairErrorsStillReplay(t *testing.T) {
+	for _, fetchErr := range []error{
+		appstate.ErrMismatchingLTHash,
+		appstate.ErrKeyNotFound,
+		wa.ErrEmptyAppStateKeyShare,
+	} {
+		t.Run(fetchErr.Error(), func(t *testing.T) {
+			a := newTestApp(t)
+			f := newFakeWA()
+			a.wa = f
+			f.appStateFetchErrs = []error{fmt.Errorf("decode: %w", fetchErr), nil}
+			chat := types.NewJID("15550000758", types.DefaultUserServer)
+			if err := a.ArchiveChat(t.Context(), chat, true); err != nil {
+				t.Fatal(err)
+			}
+			if len(f.appStateFetches) != 2 || f.appStateFetches[0].fullSync || !f.appStateFetches[1].fullSync {
+				t.Fatalf("fetches = %+v, want incremental then full replay", f.appStateFetches)
+			}
+		})
 	}
 }
