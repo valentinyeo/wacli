@@ -601,7 +601,7 @@ func (a *App) handleStarEvent(ctx context.Context, evt *events.Star) error {
 }
 
 func (a *App) handleLiveSyncMessage(ctx context.Context, opts SyncOptions, v *events.Message, messagesStored *atomic.Int64, enqueueMedia func(string, string), enqueueWebhook func(wa.ParsedMessage), limits ...*syncStorageLimits) {
-	if historySyncNotificationFromMessage(v) != nil {
+	if v != nil && v.Message.GetProtocolMessage().GetHistorySyncNotification() != nil {
 		return
 	}
 	observedArchiveMS, observedSettingMS, archiveDisabled := a.observedArchiveBoundary(ctx, v.Info.Chat)
